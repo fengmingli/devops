@@ -1,0 +1,55 @@
+---
+services:
+  kafka1:
+    image: confluentinc/cp-server:5.5.0
+    hostname: kafka1
+    container_name: kafka1
+    healthcheck:
+      test: curl --user superUser:superUser -fail --silent --insecure https://kafka1:8091/kafka/v3/clusters/ --output /dev/null || exit 1
+      interval: 10s
+      retries: 25
+      start_period: 20s
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    volumes:
+      - ./scripts/security/keypair:/tmp/conf
+      - ./scripts/helper:/tmp/helper
+      - ./scripts/security:/etc/kafka/secrets
+    command: "bash -c 'if [ ! -f /etc/kafka/secrets/kafka.kafka1.keystore.jks ]; then echo \"ERROR: Did not find SSL certificates in /etc/kafka/secrets/ (did you remember to run ./scripts/start.sh instead of docker-compose up -d?)\" && exit 1 ; else /etc/confluent/docker/run ; fi'"
+    ports:
+      - 8091:8091
+      - 9091:9091
+      - 10091:10091
+      - 11091:11091
+      - 12091:12091
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2182
+      KAFKA_ZOOKEEPER_SET_ACL: 'true'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:SASL_PLAINTEXT,TOKEN:SASL_SSL,SSL:SSL,CLEAR:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka1:9091,TOKEN://kafka1:10091,SSL://kafka1:11091,CLEAR://kafka1:12091
+
+      KAFKA_SUPER_USERS: User:admin
+      KAFKA_LOG4J_LOGGERS: "kafka.authorizer.logger=INFO"
+      KAFKA_LOG4J_ROOT_LOGLEVEL: INFO
+
+      KAFKA_BROKER_ID: 1
+      KAFKA_BROKER_RACK: "r1"
+      KAFKA_JMX_PORT: 9991
+
+      KAFKA_SASL_MECHANISM_INTER_BROKER_PROTOCOL: PLAIN
+      KAFKA_SASL_ENABLED_MECHANISMS: PLAIN, OAUTHBEARER
+
+      KAFKA_LISTENER_NAME_INTERNAL_SASL_ENABLED_MECHANISMS: PLAIN
+      KAFKA_LISTENER_NAME_INTERNAL_PLAIN_SASL_JAAS_CONFIG: |
+        org.apache.kafka.common.security.plain.PlainLoginModule required \
+        username="admin" \
+        password="admin123456" \
+        user_admin="admin-secret" \
+
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 2
+      KAFKA_OPTS: -Djava.security.auth.login.config=/etc/kafka/secrets/broker_jaas.conf
+
